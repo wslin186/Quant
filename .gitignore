@@ -1,0 +1,13 @@
+# IDE / env
+.idea/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# generated
+tests/logs/
+data/snapshot/
+dir.txt
+structure.txt
