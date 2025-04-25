@@ -1,6 +1,6 @@
 import time
 from src.backtest.data_player import DataPlayer
-from src.strategy.ma_cross_strategy import MaCrossStrategy
+from src.strategy.ma_cross import MaCrossStrategy
 from src.event_engine.event_engine import EventEngine
 from src.event_engine.event_type import EventType
 from src.event_engine.event import Event

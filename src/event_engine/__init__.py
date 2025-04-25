@@ -1,2 +1,5 @@
-from .event_engine import EventEngine      # 新增
-from .event_type import EventType          # 原来就有
+# ------------- src/event_engine/__init__.py -------------
+from .event_engine import EventEngine
+from .event_type  import EventType
+from .event       import Event
+# --------------------------------------------------------
