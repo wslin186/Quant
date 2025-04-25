@@ -1,0 +1,7 @@
+env: dev
+log_level: INFO
+save_snapshot: true
+snapshot_dir: data/snapshot
+run_mode: realtime
+strategy_mode: single
+report_enable: false

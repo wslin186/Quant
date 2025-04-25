@@ -1,0 +1,12 @@
+subscriptions:
+  - codes: ["600519"]
+    exchange_id: 1
+    product_type: 1
+    sub_mode: 0
+    data_types: 2
+
+  - codes: ["000858"]
+    exchange_id: 2
+    product_type: 1
+    sub_mode: 1
+    data_types: 2

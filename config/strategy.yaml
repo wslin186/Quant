@@ -1,0 +1,6 @@
+strategies:
+  - name: MaCrossStrategy
+    class: src.strategy.ma_cross.MaCrossStrategy
+    config:
+      short_window: 5
+      long_window: 20
