@@ -1,45 +1,46 @@
-# src/backtest/signal_recorder.py
-
 import csv
 import os
 from datetime import datetime
+from utils.logger import get_logger
 from src.event_engine.event_type import EventType
+
+logger = get_logger("Signal")
 
 
 class SignalRecorder:
-    def __init__(self, output_path="tests/logs/trades.csv"):
+    CSV_HEADER = ["时间", "动作", "标的", "价格", "来源"]
+
+    def __init__(self,
+                 output_path: str = "tests/logs/trades.csv",
+                 verbose: bool = True):
         self.output_path = output_path
-        self.records = []
+        self.verbose = verbose
+        self.records: list[list] = []
 
-        # 如果路径不存在则创建
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        # 写入表头
-        with open(self.output_path, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(["时间", "动作", "标的", "价格", "来源"])
+        with open(self.output_path, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow(self.CSV_HEADER)
 
     def on_event(self, event):
-        signal = event.data
+        if event.type != EventType.STRATEGY_SIGNAL:
+            return
+        sig = event.data
         row = [
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            signal.get("action"),
-            signal.get("symbol"),
-            signal.get("price"),
+            sig.get("action"),
+            sig.get("symbol"),
+            sig.get("price"),
             event.source
         ]
         self.records.append(row)
+        with open(self.output_path, "a", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow(row)
 
-        # 实时写入 CSV
-        with open(self.output_path, mode='a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(row)
-
-        print(f"📝 已记录交易信号: {row}")
+        if self.verbose:
+            logger.info("📝 信号记录 %s", row)
 
     def print_signals(self):
-        for row in self.records:
-            print(
-                f"  - 时间: {row[0]} | 操作: {'买入' if row[1] == 'buy' else '卖出'} | 标的: {row[2]} | 价格: {row[3]} | 来源: {row[4]}"
-            )
-
+        logger.info("🗒️  [信号记录]")
+        for t, act, sym, price, src in self.records:
+            logger.info("  - %s | %s | %s | %s | %s",
+                        t, "买入" if act == 'buy' else "卖出", sym, price, src)

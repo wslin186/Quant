@@ -1,56 +1,49 @@
+# tests/test_data_player.py  ← 直接覆盖整文件
 import time
+
 from src.backtest.data_player import DataPlayer
 from src.strategy.ma_cross import MaCrossStrategy
 from src.event_engine.event_engine import EventEngine
 from src.event_engine.event_type import EventType
-from src.event_engine.event import Event
 from src.record.signal_recorder import SignalRecorder
 from src.account.account_simulator import AccountSimulator
 
 
-def main():
+def main() -> None:
     print("🚀 启动 DataPlayer 回测测试")
 
-    # 初始化事件引擎
-    engine = EventEngine("backtest")
-    engine.start()
+    # 1. 事件引擎
+    eng = EventEngine("backtest")
+    eng.start()
 
-    account = AccountSimulator()
+    # 2. 账户 & 信号记录器（各只实例化一次）
+    account  = AccountSimulator(initial_cash=100_000)
     recorder = SignalRecorder()
-    engine.register(EventType.STRATEGY_SIGNAL, account.on_event)
-    engine.register(EventType.STRATEGY_SIGNAL, recorder.on_event)
 
-    # 初始化策略
-    params = {"short_window": 3, "long_window": 5}
-    strategy = MaCrossStrategy("ma_test", engine, params)
-    engine.register(EventType.MARKET_SNAPSHOT, strategy.on_event)
+    eng.register(EventType.STRATEGY_SIGNAL, account.on_event)
+    eng.register(EventType.STRATEGY_SIGNAL, recorder.on_event)
 
-    # 初始化记录器和账户模拟器
-    recorder = SignalRecorder()
-    account = AccountSimulator(initial_cash=100000)
+    # 3. 策略
+    params   = {"short_window": 3, "long_window": 5}
+    strategy = MaCrossStrategy("ma_test", eng, params)
+    eng.register(EventType.MARKET_SNAPSHOT, strategy.on_event)
 
-    engine.register(EventType.STRATEGY_SIGNAL, recorder.on_event)
-    engine.register(EventType.STRATEGY_SIGNAL, account.on_event)
-
-    # 初始化数据播放器（可改为 csv 或 local）
+    # 4. 数据播放器（mock 数据，0.1 秒一行）
     player = DataPlayer(
-        event_engine=engine,
-        data_source="mock",  # 可选: "mock" / "csv" / "local"
-        config={"path": "tests/data/snapshot.csv"},  # 如果是csv
+        event_engine=eng,
+        data_source="mock",           # 也可改为 "csv"
+        config={"path": "tests/data/snapshot.csv"},
         delay=0.1
     )
-
-    # 播放数据
     player.start()
 
-    # 等待事件全部处理
+    # 5. 等待所有事件处理完
     time.sleep(2)
-    engine.stop()
+    eng.stop()
 
+    # 6. 打印结果
     account.print_history()
-
     account.print_trades()
-
     recorder.print_signals()
 
 

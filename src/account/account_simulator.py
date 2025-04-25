@@ -1,72 +1,79 @@
 import datetime
 from src.event_engine.event_type import EventType
+from utils.logger import get_logger
+
+logger = get_logger("Account")
 
 
 class AccountSimulator:
-    def __init__(self, initial_cash=1_000_000):
+    def __init__(self, initial_cash: int = 1_000_000):
         self.initial_cash = initial_cash
         self.cash = initial_cash
-        self.position = {}  # symbol -> quantity
-        self.trades = []    # 成交记录：每一笔交易
-        self.history = []   # 每次更新的账户状态
+        self.position: dict[str, int] = {}
+        self.trades:   list[list] = []
+        self.history:  list[dict] = []
+        self._last_prices: dict[str, float] = {}
 
+    # ========== 事件入口 ==========
     def on_event(self, event):
         if event.type == EventType.STRATEGY_SIGNAL:
-            self.on_order_filled(event.data)
+            self._on_order_filled(event.data)
+        elif event.type == EventType.MARKET_SNAPSHOT:
+            self._on_price(event.data)
 
-    def on_order_filled(self, signal: dict):
-        symbol = signal["symbol"]
-        action = signal["action"]
-        price = signal["price"]
-        volume = signal.get("volume", 100)  # 默认为100股
-        time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # ---------- 信号处理 ----------
+    def _on_order_filled(self, sig: dict):
+        sym, act, price = sig["symbol"], sig["action"], sig["price"]
+        vol = sig.get("volume", 100)
+        ts  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if action == "buy":
-            cost = price * volume
-            if self.cash >= cost:
-                self.cash -= cost
-                self.position[symbol] = self.position.get(symbol, 0) + volume
-                self.trades.append([time, "buy", symbol, price, volume])
-            else:
-                print("❌ 资金不足，买入失败")
+        if act == "buy":
+            cost = price * vol
+            if self.cash < cost:
+                logger.warning("资金不足：cash=%s cost=%s", self.cash, cost)
+                return
+            self.cash -= cost
+            self.position[sym] = self.position.get(sym, 0) + vol
+        else:
+            if self.position.get(sym, 0) < vol:
+                logger.warning("持仓不足：%s 想卖 %s 现有 %s", sym, vol, self.position.get(sym, 0))
+                return
+            self.cash += price * vol
+            self.position[sym] -= vol
 
-        elif action == "sell":
-            if self.position.get(symbol, 0) >= volume:
-                self.cash += price * volume
-                self.position[symbol] -= volume
-                self.trades.append([time, "sell", symbol, price, volume])
-            else:
-                print("❌ 持仓不足，卖出失败")
+        self.trades.append([ts, act, sym, price, vol])
+        self._last_prices[sym] = price
+        self._snapshot(ts)
 
-        # 记录账户快照
-        self._snapshot(time)
+    # ---------- 行情估值 ----------
+    def _on_price(self, md: dict):
+        sym, price = md.get("SecurityID"), md.get("TradePx")
+        if sym and price is not None:
+            self._last_prices[sym] = price
+            if self.position.get(sym, 0):
+                self._snapshot(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-    def _snapshot(self, time):
-        snapshot = {
-            "time": time,
+    # ---------- 快照 ----------
+    def _snapshot(self, ts: str):
+        total = self.cash + sum(q * self._last_prices.get(s, 0)
+                                for s, q in self.position.items())
+        self.history.append({
+            "time": ts,
             "cash": self.cash,
             "position": dict(self.position),
-            "total_value": self.cash + sum(
-                qty * 0  # 此处价格=0，后续接入实时行情估值
-                for qty in self.position.values()
-            )
-        }
-        self.history.append(snapshot)
+            "total_value": total
+        })
 
+    # ---------- 输出 ----------
     def print_trades(self):
-        print("📋 [成交记录]")
-        for row in self.trades:
-            ts, action, symbol, price, qty = row
-            print(
-                f"  - 时间: {ts} | 操作: {'买入' if action == 'buy' else '卖出'} | 标的: {symbol} | 价格: {price} | 数量: {qty}")
+        logger.info("📋 [成交记录]")
+        for ts, act, sym, p, q in self.trades:
+            logger.info("  - %s | %s | %s | %s | %s", ts,
+                        "买入" if act == "buy" else "卖出", sym, p, q)
 
     def print_history(self):
-        print("📈 [账户资产变化]")
-        for record in self.history:
-            time_str = record['time']
-            cash = record['cash']
-            position = record['position']
-            value = record['total_value']
-            pos_str = ", ".join([f"{k}: {v}" for k, v in position.items()])
-            print(f"  - 时间: {time_str} | 现金: {cash} | 持仓: {pos_str or '无'} | 总资产: {value}")
-
+        logger.info("📈 [账户资产变化]")
+        for r in self.history:
+            pos = ", ".join(f"{k}:{v}" for k, v in r['position'].items()) or "无"
+            logger.info("  - %s | 现金:%s | 持仓:%s | 总资产:%s",
+                        r['time'], r['cash'], pos, r['total_value'])
