@@ -11,3 +11,8 @@ tests/logs/
 data/snapshot/
 dir.txt
 structure.txt
+.idea/
+.venv/
+scripts/
+dir.txt
+structure.txt
